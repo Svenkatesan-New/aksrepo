@@ -8,6 +8,10 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write       # Grants permission to use the OIDC token
+      contents: write       # Grants permission to push changes to the repository
+      actions: read 
 
     steps:
     - name: Checkout code
