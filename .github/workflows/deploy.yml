@@ -1,4 +1,56 @@
-name: Deploy Flask App to AKS
+# name: Deploy Flask App to AKS
+
+# on:
+#   push:
+#     branches:
+#       - main  # Trigger deployment on push to the main branch
+
+# jobs:
+#   build_and_deploy:
+#     runs-on: ubuntu-latest
+#     permissions:
+#       id-token: write       # Grants permission to use the OIDC token
+#       contents: write       # Grants permission to push changes to the repository
+#       actions: read 
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v2
+
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v2
+
+#     - name: Log in to Azure
+#       uses: azure/login@v1
+#       with:
+#         client-id: ${{ secrets.AZURE_CLIENT_ID }}
+#         client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+#         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+#         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+#     - name: Log in to Azure Container Registry
+#       run: |
+#         echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_USERNAME }} --password-stdin
+
+#     - name: Build Docker image
+#       run: |
+#         docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest .
+
+#     - name: Push Docker image to ACR
+#       run: |
+#         docker push ${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest
+
+#     - name: Set up kubectl
+#       uses: azure/setup-kubectl@v1
+#       with:
+#         kubeconfig: ${{ secrets.KUBECONFIG }}
+
+#     - name: Deploy to AKS
+#       run: |
+#         kubectl apply -f k8s-deployment.yml
+#         kubectl set image deployment/flask-app flask-app=${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest
+#         kubectl rollout status deployment/flask-app
+name: Deploy Flask app to AKS
 
 on:
   push:
@@ -6,47 +58,64 @@ on:
       - main  # Trigger deployment on push to the main branch
 
 jobs:
-  build_and_deploy:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write       # Grants permission to use the OIDC token
-      contents: write       # Grants permission to push changes to the repository
-      actions: read 
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
 
-    - name: Log in to Azure
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Log in to Azure Container Registry
-      run: |
-        echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_NAME }}.azurecr.io --username ${{ secrets.ACR_USERNAME }} --password-stdin
+      # Set up Docker
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest .
+      # Log in to Azure Container Registry (ACR)
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: <your_acr_name>.azurecr.io
+          username: ${{ secrets.AZURE_ACR_USERNAME }}
+          password: ${{ secrets.AZURE_ACR_PASSWORD }}
 
-    - name: Push Docker image to ACR
-      run: |
-        docker push ${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest
+      # Build and push the Docker image
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t newacrfordemo.azurecr.io/flask-app:${{ github.sha }} .
+          docker push newacrfordemo.azurecr.io/flask-app:${{ github.sha }}
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v1
-      with:
-        kubeconfig: ${{ secrets.KUBECONFIG }}
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Deploy to AKS
-      run: |
-        kubectl apply -f k8s-deployment.yml
-        kubectl set image deployment/flask-app flask-app=${{ secrets.ACR_NAME }}.azurecr.io/flask-app:latest
-        kubectl rollout status deployment/flask-app
+      # Login to Azure using Service Principal
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Set AKS credentials
+      - name: Set AKS credentials
+        run: |
+          az aks get-credentials --resource-group myresourcegroup --name myAKSCluster
+
+      # Deploy to AKS using kubectl
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
