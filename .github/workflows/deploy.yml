@@ -85,7 +85,7 @@ jobs:
       - name: Login to ACR
         uses: azure/docker-login@v1
         with:
-          login-server: <your_acr_name>.azurecr.io
+          login-server: newacrfordemo.azurecr.io
           username: ${{ secrets.AZURE_ACR_USERNAME }}
           password: ${{ secrets.AZURE_ACR_PASSWORD }}
 
