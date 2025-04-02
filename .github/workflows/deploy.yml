@@ -118,4 +118,4 @@ jobs:
       - name: Deploy to AKS
         run: |
           kubectl apply -f k8s-deployment.yml
-          kubectl apply -f service.yaml
+          kubectl apply -f service.yml
